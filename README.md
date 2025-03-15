@@ -1,54 +1,125 @@
-# React + TypeScript + Vite
+# react-stylized-html-to-image
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React hook for converting HTML elements to stylized images with high-quality output.
 
-Currently, two official plugins are available:
+## Installation
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+# npm
+npm install html-to-image
 
-## Expanding the ESLint configuration
+# yarn
+yarn add html-to-image
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# pnpm
+pnpm add html-to-image
+```
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
+## Usage
+
+```tsx
+import { useRef } from "react";
+import { useHtmlToImage } from "./hooks/useHtmlToImage";
+
+export const Example = () => {
+  const elementRef = useRef<HTMLDivElement>(null);
+  const { downloadImage, copyImage } = useHtmlToImage({
+    ref: elementRef,
+  });
+
+  return <div ref={elementRef}>// Your content here</div>;
+};
+```
+
+## Hook Implementation
+
+Add this hook to your project:
+
+```tsx
+import { RefObject, useCallback } from "react";
+import { toPng } from "html-to-image";
+
+export const useHtmlToImage = <T extends HTMLElement>({
+  ref,
+  scale = 4,
+  onSuccess,
+  onError,
+}: {
+  ref: RefObject<T | null>;
+  scale?: number;
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}) => {
+  const downloadImage = useCallback(
+    async (filename = "download.png") => {
+      if (!ref.current) {
+        onError?.(new Error("Element not found"));
+        return;
+      }
+
+      try {
+        const dataUrl = await toPng(ref.current, {
+          quality: 1,
+          pixelRatio: scale,
+        });
+
+        // Create a link element and trigger download
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = dataUrl;
+        link.click();
+
+        onSuccess?.();
+      } catch (error) {
+        console.error("Error downloading image:", error);
+        onError?.(error as Error);
+      }
     },
-  },
-})
+    [ref, scale, onSuccess, onError]
+  );
+
+  const copyImage = useCallback(async () => {
+    if (!ref.current) {
+      onError?.(new Error("Element not found"));
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(ref.current, {
+        quality: 1,
+        pixelRatio: scale,
+      });
+
+      // Convert data URL to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      // Copy to clipboard using Clipboard API
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob,
+        }),
+      ]);
+
+      onSuccess?.();
+    } catch (error) {
+      console.error("Error copying image:", error);
+      onError?.(error as Error);
+    }
+  }, [ref, scale, onSuccess, onError]);
+
+  return { downloadImage, copyImage };
+};
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Features
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Convert any HTML element to a high-quality PNG image
+- Download images directly to the user's device
+- Copy images to clipboard
+- Configurable scale factor for higher resolution output
+- Success and error callbacks for handling operation results
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+## License
+
+MIT
